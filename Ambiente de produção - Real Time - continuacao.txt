@@ -1,0 +1,214 @@
+/*Ambiente de produção - Real Time*/
+
+-- Criação do Banco de Dados de Produção
+CREATE DATABASE IF NOT EXISTS HotelDallasProd;
+USE HotelDallasProd;
+use HotelDallasdw;
+
+-- Tabela de Clientes na Produção
+CREATE TABLE Clientes (
+    ID_Cliente INT PRIMARY KEY,
+    Nome VARCHAR(100),
+    Idade INT,
+    Pais VARCHAR(50)
+);
+
+-- Tabela de Reservas na Produção
+CREATE TABLE Reservas (
+    ID_Reserva INT PRIMARY KEY,
+    ID_Cliente INT,
+    Data_Entrada DATE,
+    Data_Saida DATE,
+    Numero_Noites INT,
+    FOREIGN KEY (ID_Cliente) REFERENCES Clientes(ID_Cliente)
+);
+
+-- Tabela de Quartos na Produção
+CREATE TABLE Quartos (
+    ID_Quarto INT PRIMARY KEY,
+    Tipo_Quarto VARCHAR(50),
+    Andar INT,
+    Preco_Diaria DECIMAL(10, 2)
+);
+
+-- Tabela de Serviços na Produção
+CREATE TABLE Servicos (
+    ID_Servico INT PRIMARY KEY,
+    Nome_Servico VARCHAR(100),
+    Categoria VARCHAR(50),
+    Preco DECIMAL(10, 2)
+);
+
+-- Tabela de Ocupações na Produção (fato transacional)
+CREATE TABLE Ocupacoes (
+    ID_Ocupacao INT PRIMARY KEY,
+    ID_Cliente INT,
+    ID_Reserva INT,
+    ID_Quarto INT,
+    Data DATE,
+    ID_Servico INT,
+    Quantidade INT,
+    Valor_Total DECIMAL(10, 2),
+    FOREIGN KEY (ID_Cliente) REFERENCES Clientes(ID_Cliente),
+    FOREIGN KEY (ID_Reserva) REFERENCES Reservas(ID_Reserva),
+    FOREIGN KEY (ID_Quarto) REFERENCES Quartos(ID_Quarto),
+    FOREIGN KEY (ID_Servico) REFERENCES Servicos(ID_Servico)
+);
+
+
+/*Popular as tabelas de Produção*/
+
+-- Inserindo dados em Clientes
+INSERT INTO Clientes (ID_Cliente, Nome, Idade, Pais) VALUES
+(1, 'Carlos Silva', 45, 'Brasil'),
+(2, 'Ana Gomez', 34, 'Argentina'),
+(3, 'Lucas Andrade', 29, 'Brasil'),
+(4, 'Mariana López', 40, 'México'),
+(5, 'Tomás Perez', 35, 'Chile');
+
+-- Inserindo dados em Reservas
+INSERT INTO Reservas (ID_Reserva, ID_Cliente, Data_Entrada, Data_Saida, Numero_Noites) VALUES
+(1, 1, '2023-01-10', '2023-01-15', 5),
+(2, 2, '2023-01-12', '2023-01-14', 2),
+(3, 3, '2023-02-05', '2023-02-10', 5);
+
+-- Inserindo dados em Quartos
+INSERT INTO Quartos (ID_Quarto, Tipo_Quarto, Andar, Preco_Diaria) VALUES
+(1, 'Suíte Luxo', 3, 500.00),
+(2, 'Quarto Standard', 2, 300.00),
+(3, 'Quarto Deluxe', 4, 450.00);
+
+-- Inserindo dados em Serviços
+INSERT INTO Servicos (ID_Servico, Nome_Servico, Categoria, Preco) VALUES
+(1, 'Café da Manhã', 'Alimentação', 30.00),
+(2, 'Spa', 'Bem-estar', 120.00),
+(3, 'Lavanderia', 'Serviço', 50.00);
+
+-- Inserindo dados em Ocupacoes
+INSERT INTO Ocupacoes (ID_Ocupacao, ID_Cliente, ID_Reserva, ID_Quarto, Data, ID_Servico, Quantidade, Valor_Total) VALUES
+(1, 1, 1, 1, '2023-01-10', 1, 1, 500.00),
+(2, 2, 2, 2, '2023-01-12', 2, 1, 300.00),
+(3, 3, 3, 3, '2023-02-05', 3, 1, 450.00);
+
+/* criando ambiente de data warehouse*/
+create database if not exists hoteldallasDW;
+use hoteldallasDW;
+
+/*criando abelas dimensao*/
+create table DimCliente
+(
+	ID_Cliente INT PRIMARY KEY,
+    Nome VARCHAR(100),
+    Idade INT,
+    Pais_Origem VARCHAR(50)
+);
+
+create table DimReserva
+(
+	ID_Reserva INT PRIMARY KEY,
+    Data_Entrada DATE, 
+    Data_Saida DATE,
+    Numero_Noites INT
+);
+
+create table DimQuarto
+(
+	ID_Quarto INT PRIMARY KEY,
+    Tipo_Quarto VARCHAR(50),
+    Andar INT,
+    Preco_Diaria DECIMAL(10,2)
+);
+
+create table DimTempo
+(
+	ID_Tempo INT PRIMARY KEY,
+    Data DATE,
+    Ano INT,
+    Mes INT,
+    Trimestre INT,
+    Dia_Semana VARCHAR(50) 
+);
+
+create table DimServico
+(
+	ID_Servico INT PRIMARY KEY,
+    Nome_Servico VARCHAR(100),
+    Categoria VARCHAR(50),
+    Preco DECIMAL(10,2)
+);
+
+create table FatoOcupacao
+(
+	ID_Ocupacao INT PRIMARY KEY,
+    ID_Cliente INT,
+    ID_Reserva INT,
+    ID_Quarto INT,
+    ID_Tempo INT,
+    ID_Servico INT,
+    Quantidade INT,
+    Valor_Total DECIMAL(10,2),
+    foreign key (ID_Cliente) references DimCliente(ID_Cliente),
+    foreign key (ID_Reserva) references DimReserva(ID_Reserva),
+    foreign key (ID_Quarto) references DimQuarto(ID_Quarto),
+    foreign key (ID_Servico) references DimServico(ID_Servico)
+);
+/*processo ETL trasnferindo os dados de producao para dw*/
+-- sempre importar apenas os dados que estao conforme a dw, pq as vezes na de producao pode ter dados a mais
+-- dim vem de dimensao dos clientes
+-- extrair e inserir dados na dimcliente
+Insert into DimCliente (ID_Cliente, Nome, Idade, Pais_Origem) 
+Select ID_Cliente, Nome, Idade, Pais from hoteldallasprod.Clientes;
+select * from DimCliente;
+-- extrair e inserir dados na dimreserva
+Insert into DimReserva (ID_Reserva, Data_Entrada, Data_Saida, Numero_Noites) 
+Select ID_Reserva, Data_Entrada, Data_Saida, Numero_Noites from hoteldallasprod.Reservas;
+Select * from DimReserva;
+-- extrair e inserir dimquarto
+Insert into DimQuarto (ID_Quarto, Tipo_Quarto, Andar, Preco_Diaria) 
+Select ID_Quarto, Tipo_Quarto, Andar, Preco_Diaria from hoteldallasprod.Quartos;
+Select * from DimQuarto;
+-- extrair e inserir dimServico
+Insert into DimServico (ID_Servico, Nome_Servico, Categoria, Preco)
+Select ID_Servico, Nome_Servico, Categoria, Preco from hoteldallasprod.Servicos;
+-- extrair e inserir dimtempo
+Insert into DimTempo (ID_Tempo, Data, Ano, Mes, Trimestre, Dia_Semana)
+Select 
+	row_number() over(order by Data) as ID_Tempo, 
+    Data,
+    year(Data) as Ano,
+    month(Data) as Mes,
+    quarter(Data) as Trimestre,
+    dayname(Data) as Dia_Semana
+    from(
+		Select distinct data from hoteldallasprod.Ocupacoes
+    ) as t;
+    select * from DimTempo;
+-- extrair e inserir FatoOcupacao
+Insert into FatoOcupacao (ID_Ocupacao, ID_Cliente, ID_Reserva, ID_Quarto,ID_Tempo, ID_Servico, Quantidade, Valor_Total)
+select 
+	Ocupacoes.ID_Ocupacao,
+    Ocupacoes.ID_Cliente,
+    Ocupacoes.ID_Reserva,
+    Ocupacoes.ID_Quarto,
+    t.ID_Tempo,
+    Ocupacoes.ID_Servico,
+    Ocupacoes.Quantidade,
+    Ocupacoes.Valor_Total
+from hoteldallasprod.Ocupacoes
+join DimTempo as t on t.Data=Ocupacoes.Data;
+select * from FatoOcupacao;
+-- continuacao aula 13/05
+-- exemplo 1: taxa de ocupacao por mes
+select DimTempo.Mes, COUNT(FatoOcupacao.ID_Ocupacao) AS Ocupacao 
+FROM FatoOcupacao
+JOIN DimTempo ON FatoOcupacao.ID_Tempo = DimTempo.ID_Tempo
+GROUP BY DimTempo.Mes;
+-- exemplo 2: faturamento total por tipo de quarto
+SELECT DimQuarto.Tipo_Quarto, SUM(FatoOcupacao.Valor_Total) AS Fatuamento_Total FROM FatoOcupacao 
+JOIN DimQuarto ON FatoOcupacao.ID_Quarto = DimQuarto.ID_Quarto 
+GROUP BY DimQuarto.Tipo_Quarto;
+-- exemplo 3 servicos mais utilizados pelos hospedes
+SELECT DimServico.Nome_Servico, COUNT(FatoOcupacao.ID_Ocupacao) AS Utilizacoes
+FROM FatoOcupacao
+JOIN DimServico ON FatoOcupacao.ID_Servico = DimServico.ID_Servico
+GROUP BY DimServico.Nome_Servico;
